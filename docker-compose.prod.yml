@@ -1,0 +1,68 @@
+networks:
+  inside:
+    external: false
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: ojs_db_prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${OJS_DB_NAME}
+      MYSQL_USER: ${OJS_DB_USER}
+      MYSQL_PASSWORD: ${OJS_DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - inside
+    restart: unless-stopped
+
+  ojs:
+    image: pkpofficial/ojs:${OJS_VERSION:-3_4_0-8}
+    container_name: ojs_app_prod
+    hostname: ojs
+    environment:
+      - OJS_DB_HOST=db
+      - OJS_DB_USER=${OJS_DB_USER}
+      - OJS_DB_PASSWORD=${OJS_DB_PASSWORD}
+      - OJS_DB_NAME=${OJS_DB_NAME}
+    volumes:
+      - ojs_private:/var/www/files
+      - ojs_public:/var/www/html/public
+      - ojs_config:/var/www/html/config.inc.php
+    networks:
+      - inside
+    depends_on:
+      - db
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ojs.rule=Host(`${OJS_DOMAIN}`)"
+      - "traefik.http.routers.ojs.entrypoints=websecure"
+      - "traefik.http.routers.ojs.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ojs.loadbalancer.server.port=80"
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: ojs_phpmyadmin_prod
+    environment:
+      PMA_HOST: db
+      PMA_USER: ${OJS_DB_USER}
+      PMA_PASSWORD: ${OJS_DB_PASSWORD}
+    depends_on:
+      - db
+    networks:
+      - inside
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.phpmyadmin.rule=Host(`pma.${OJS_DOMAIN}`)"
+      - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
+      - "traefik.http.routers.phpmyadmin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
+
+volumes:
+  db_data:
+  ojs_private:
+  ojs_public:
+  ojs_config:

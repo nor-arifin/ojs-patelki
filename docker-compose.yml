@@ -1,0 +1,60 @@
+networks:
+  inside:
+    external: false
+
+services:
+  db:
+    image: mariadb:11.4
+#    env_file:
+#      - .env
+    container_name: "ojs_db_${COMPOSE_PROJECT_NAME:-demo}"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-ojsPwd}"
+      MYSQL_DATABASE: "${OJS_DB_NAME:-ojs}"
+      MYSQL_USER: "${OJS_DB_USER:-ojs}"
+      MYSQL_PASSWORD: "${OJS_DB_PASSWORD:-ojsPwd}"
+    volumes:
+      - ./volumes/db:/var/lib/mysql
+      - ./volumes/db-import:/docker-entrypoint-initdb.d
+#      - ./volumes/logs/db:/var/log/mysql
+#      - ./volumes/config/db.charset.conf:/etc/mysql/conf.d/charset.cnf
+    networks:
+      - inside
+    restart: unless-stopped
+
+  ojs:
+    image: "pkpofficial/${OJS_IMAGE:-ojs}:${OJS_VERSION:-latest}"
+#    env_file:
+#      - .env
+    container_name: "ojs_app_${COMPOSE_PROJECT_NAME:-demo}"
+    hostname: "${COMPOSE_PROJECT_NAME:-demo}"
+    ports:
+      - "4000:80"
+      - "4443:443"
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - ./volumes/private:/var/www/files
+      - ./volumes/public:/var/www/html/public
+
+      - ./volumes/config/ojs.config.inc.php:/var/www/html/config.inc.php
+
+    networks:
+      - inside
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: "ojs_phpmyadmin_${COMPOSE_PROJECT_NAME:-demo}"
+    environment:
+      PMA_HOST: db
+      PMA_USER: "${OJS_DB_USER:-ojs}"
+      PMA_PASSWORD: "${OJS_DB_PASSWORD:-ojsPwd}"
+    ports:
+      - "4001:80"
+    depends_on:
+      - db
+    networks:
+      - inside
+    restart: unless-stopped
